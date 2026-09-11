@@ -1,7 +1,6 @@
 import os, cv2, pickle, sqlite3, base64, math
 import numpy as np
 from flask import Flask, render_template, jsonify, request
-from tensorflow.keras.models import load_model
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 if script_dir:
@@ -9,8 +8,14 @@ if script_dir:
 
 app = Flask(__name__, template_folder='templates')
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-cnn_model = load_model('cnn_model_keras2.h5')
+cnn_model = None
+try:
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    from tensorflow.keras.models import load_model
+    if os.path.exists('cnn_model_keras2.h5'):
+        cnn_model = load_model('cnn_model_keras2.h5')
+except Exception as e:
+    print("Running in Vercel Free Serverless Mode:", e)
 
 x, y, w, h = 300, 100, 300, 300
 image_x, image_y = 50, 50
@@ -64,6 +69,8 @@ def get_pred_text_from_db(pred_class):
     return ""
 
 def keras_predict(model, image):
+    if model is None:
+        return 0.0, 0
     processed = cv2.resize(image, (image_x, image_y))
     processed = np.array(processed, dtype=np.float32)
     processed = np.reshape(processed, (1, image_x, image_y, 1))
