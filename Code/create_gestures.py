@@ -2,6 +2,10 @@ import cv2
 import numpy as np
 import pickle, os, sqlite3, random
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir:
+	os.chdir(script_dir)
+
 image_x, image_y = 50, 50
 
 def get_hand_hist():
@@ -64,7 +68,8 @@ def store_images(g_id):
 		thresh = cv2.merge((thresh,thresh,thresh))
 		thresh = cv2.cvtColor(thresh, cv2.COLOR_BGR2GRAY)
 		thresh = thresh[y:y+h, x:x+w]
-		contours = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)[1]
+		contours_res = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+		contours = contours_res[0] if len(contours_res) == 2 else contours_res[1]
 
 		if len(contours) > 0:
 			contour = max(contours, key = cv2.contourArea)

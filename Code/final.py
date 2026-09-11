@@ -1,11 +1,14 @@
 import cv2, pickle
 import numpy as np
 import tensorflow as tf
-from cnn_tf import cnn_model_fn
 import os
 import sqlite3, pyttsx3
-from keras.models import load_model
+from tensorflow.keras.models import load_model
 from threading import Thread
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir:
+	os.chdir(script_dir)
 
 engine = pyttsx3.init()
 engine.setProperty('rate', 150)
@@ -19,6 +22,8 @@ def get_hand_hist():
 
 def get_image_size():
 	img = cv2.imread('gestures/0/100.jpg', 0)
+	if img is None:
+		return (50, 50)
 	return img.shape
 
 image_x, image_y = get_image_size()
@@ -89,17 +94,33 @@ is_voice_on = True
 
 def get_img_contour_thresh(img):
 	img = cv2.flip(img, 1)
-	imgHSV = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-	dst = cv2.calcBackProject([imgHSV], [0, 1], hist, [0, 180, 0, 256], 1)
-	disc = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(10,10))
-	cv2.filter2D(dst,-1,disc,dst)
-	blur = cv2.GaussianBlur(dst, (11,11), 0)
-	blur = cv2.medianBlur(blur, 15)
-	thresh = cv2.threshold(blur,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)[1]
-	thresh = cv2.merge((thresh,thresh,thresh))
-	thresh = cv2.cvtColor(thresh, cv2.COLOR_BGR2GRAY)
-	thresh = thresh[y:y+h, x:x+w]
-	contours = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)[0]
+	img_crop = img[y:y+h, x:x+w]
+	
+	ycrcb = cv2.cvtColor(img_crop, cv2.COLOR_BGR2YCrCb)
+	mask_ycrcb = cv2.inRange(ycrcb, np.array([0, 133, 77], dtype=np.uint8), np.array([255, 173, 127], dtype=np.uint8))
+
+	hsv = cv2.cvtColor(img_crop, cv2.COLOR_BGR2HSV)
+	mask_hsv = cv2.inRange(hsv, np.array([0, 20, 40], dtype=np.uint8), np.array([25, 255, 255], dtype=np.uint8))
+
+	if hist is not None:
+		dst = cv2.calcBackProject([hsv], [0, 1], hist, [0, 180, 0, 256], 1)
+		disc = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+		cv2.filter2D(dst, -1, disc, dst)
+		blur = cv2.GaussianBlur(dst, (7, 7), 0)
+		mask_hist = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+		combined = cv2.bitwise_or(cv2.bitwise_and(mask_ycrcb, mask_hsv), mask_hist)
+	else:
+		combined = cv2.bitwise_and(mask_ycrcb, mask_hsv)
+
+	kernel_small = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+	kernel_large = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
+	cleaned = cv2.morphologyEx(combined, cv2.MORPH_OPEN, kernel_small)
+	cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel_large)
+	cleaned = cv2.GaussianBlur(cleaned, (5, 5), 0)
+	_, thresh = cv2.threshold(cleaned, 127, 255, cv2.THRESH_BINARY)
+
+	contours_res = cv2.findContours(thresh.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+	contours = contours_res[0] if len(contours_res) == 2 else contours_res[1]
 	return img, contours, thresh
 
 def say_text(text):

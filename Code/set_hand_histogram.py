@@ -1,6 +1,10 @@
 import cv2
 import numpy as np
-import pickle
+import pickle, os
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir:
+	os.chdir(script_dir)
 
 def build_squares(img):
 	x, y, w, h = 420, 140, 10, 10
@@ -13,7 +17,6 @@ def build_squares(img):
 				imgCrop = img[y:y+h, x:x+w]
 			else:
 				imgCrop = np.hstack((imgCrop, img[y:y+h, x:x+w]))
-			#print(imgCrop.shape)
 			cv2.rectangle(img, (x,y), (x+w, y+h), (0,255,0), 1)
 			x+=w+d
 		if np.any(crop == None):
@@ -56,16 +59,14 @@ def get_hand_hist():
 			blur = cv2.medianBlur(blur, 15)
 			ret,thresh = cv2.threshold(blur,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 			thresh = cv2.merge((thresh,thresh,thresh))
-			#cv2.imshow("res", res)
 			cv2.imshow("Thresh", thresh)
 		if not flagPressedS:
 			imgCrop = build_squares(img)
-		#cv2.rectangle(img, (x,y), (x+w, y+h), (0,255,0), 2)
 		cv2.imshow("Set hand histogram", img)
 	cam.release()
 	cv2.destroyAllWindows()
 	with open("hist", "wb") as f:
 		pickle.dump(hist, f)
 
-
-get_hand_hist()
+if __name__ == '__main__':
+	get_hand_hist()

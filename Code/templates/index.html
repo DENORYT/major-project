@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Language Interpreter - Web App</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border-bottom: 1px solid #334155;
+        }
+        .card-custom {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+        .prediction-badge {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #38bdf8;
+        }
+        .confidence-meter {
+            height: 10px;
+            border-radius: 5px;
+        }
+        .word-output {
+            min-height: 80px;
+            background-color: #090d16;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            font-size: 1.5rem;
+            padding: 12px;
+            word-wrap: break-word;
+        }
+        .badge-gesture {
+            background-color: #334155;
+            color: #e2e8f0;
+            font-size: 0.85rem;
+            margin: 2px;
+        }
+        .slider-label {
+            font-size: 0.8rem;
+            color: #94a3b8;
+        }
+    </style>
+</head>
+<body class="py-3">
+    <div class="container">
+        <!-- Header -->
+        <nav class="navbar navbar-expand-lg navbar-dark rounded-3 px-3 mb-4 card-custom">
+            <div class="container-fluid">
+                <span class="navbar-brand fw-bold text-info fs-4">
+                    <i class="bi bi-hand-index-thumb-fill me-2"></i> Sign Language Interpreter
+                </span>
+                <span class="badge bg-success px-3 py-2 fs-6">Live AI Interpreter</span>
+            </div>
+        </nav>
+
+        <div class="row g-4">
+            <!-- Left Column: Video Feed & Threshold Mask Tuning -->
+            <div class="col-lg-7">
+                <div class="card card-custom p-3 mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="m-0 text-light"><i class="bi bi-camera-video me-2"></i>Webcam Feed</h5>
+                        <div>
+                            <button id="startBtn" class="btn btn-primary btn-sm"><i class="bi bi-play-fill"></i> Start Camera</button>
+                            <button id="stopBtn" class="btn btn-secondary btn-sm" disabled><i class="bi bi-stop-fill"></i> Stop</button>
+                        </div>
+                    </div>
+                    
+                    <div class="video-container mx-auto">
+                        <video id="webcam" autoplay playsinline muted></video>
+                        <canvas id="sendCanvas" style="display:none;"></canvas>
+                    </div>
+                </div>
+
+                <!-- Threshold Mask Tuning Controls -->
+                <div class="card card-custom p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="text-light m-0"><i class="bi bi-sliders me-2"></i>Threshold Mask Calibrator</h6>
+                        <select id="modeSelect" class="form-select form-select-sm w-auto bg-dark text-light border-secondary">
+                            <option value="adaptive" selected>Adaptive Hybrid Mode</option>
+                            <option value="otsu">Otsu Auto Threshold</option>
+                            <option value="hsv_only">HSV Range Mode</option>
+                            <option value="ycrcb_only">YCrCb Skin Mode</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 align-items-center mb-3">
+                        <div class="col-12 text-center bg-black p-2 rounded">
+                            <img id="threshImg" src="" alt="Threshold Feed" class="img-fluid rounded" style="max-height: 200px; display: none;">
+                            <span id="threshPlaceholder" class="text-muted py-4 d-block">Start camera to view threshold mask</span>
+                        </div>
+                    </div>
+
+                    <!-- Sensitivity Sliders -->
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="d-flex justify-content-between slider-label">
+                                <span>Hue Min</span><span id="val_min_h">0</span>
+                            </div>
+                            <input type="range" class="form-range" id="min_h" min="0" max="180" value="0">
+                        </div>
+                        <div class="col-6">
+                            <div class="d-flex justify-content-between slider-label">
+                                <span>Hue Max</span><span id="val_max_h">25</span>
+                            </div>
+                            <input type="range" class="form-range" id="max_h" min="0" max="180" value="25">
+                        </div>
+                        <div class="col-6">
+                            <div class="d-flex justify-content-between slider-label">
+                                <span>Saturation Min</span><span id="val_min_s">20</span>
+                            </div>
+                            <input type="range" class="form-range" id="min_s" min="0" max="255" value="20">
+                        </div>
+                        <div class="col-6">
+                            <div class="d-flex justify-content-between slider-label">
+                                <span>Brightness Min</span><span id="val_min_v">50</span>
+                            </div>
+                            <input type="range" class="form-range" id="min_v" min="0" max="255" value="50">
+                        </div>
+                    </div>
+
+                    <!-- Presets -->
+                    <div class="mt-2 d-flex gap-2 justify-content-center">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="setPreset('bright')">☀️ Daylight Preset</button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="setPreset('warm')">💡 Warm Light Preset</button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="setPreset('reset')">🔄 Reset Sliders</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Predictions & Output -->
+            <div class="col-lg-5">
+                <!-- Current Prediction -->
+                <div class="card card-custom p-3 mb-3 text-center">
+                    <h6 class="text-muted text-uppercase fw-bold mb-1">Detected Gesture</h6>
+                    <div id="predText" class="prediction-badge my-1">--</div>
+                    <div class="mb-2">
+                        <small class="text-muted">Confidence: <span id="confVal">0%</span></small>
+                        <div class="progress confidence-meter mt-1">
+                            <div id="confBar" class="progress-bar bg-info" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Text Sentence Accumulator -->
+                <div class="card card-custom p-3 mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="text-light m-0"><i class="bi bi-chat-left-text me-2"></i>Interpreted Text</h6>
+                        <div>
+                            <button id="speakBtn" class="btn btn-outline-info btn-sm"><i class="bi bi-volume-up"></i> Speak</button>
+                            <button id="clearBtn" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> Clear</button>
+                        </div>
+                    </div>
+                    <div id="wordBox" class="word-output text-info fw-bold"></div>
+                </div>
+
+                <!-- Database Gestures List -->
+                <div class="card card-custom p-3">
+                    <h6 class="text-light mb-2"><i class="bi bi-grid-3x3-gap me-2"></i>Supported Gestures (44 Labels)</h6>
+                    <div id="gesturesList" class="d-flex flex-wrap max-h-150 overflow-auto" style="max-height: 180px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const sendCanvas = document.getElementById('sendCanvas');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const predText = document.getElementById('predText');
+        const confVal = document.getElementById('confVal');
+        const confBar = document.getElementById('confBar');
+        const wordBox = document.getElementById('wordBox');
+        const threshImg = document.getElementById('threshImg');
+        const threshPlaceholder = document.getElementById('threshPlaceholder');
+        const gesturesList = document.getElementById('gesturesList');
+        const modeSelect = document.getElementById('modeSelect');
+
+        // Sliders
+        const min_h = document.getElementById('min_h');
+        const max_h = document.getElementById('max_h');
+        const min_s = document.getElementById('min_s');
+        const min_v = document.getElementById('min_v');
+
+        ['min_h', 'max_h', 'min_s', 'min_v'].forEach(id => {
+            const el = document.getElementById(id);
+            el.addEventListener('input', () => {
+                document.getElementById('val_' + id).innerText = el.value;
+            });
+        });
+
+        function setPreset(type) {
+            if (type === 'bright') {
+                min_h.value = 0; max_h.value = 30; min_s.value = 30; min_v.value = 80;
+            } else if (type === 'warm') {
+                min_h.value = 0; max_h.value = 20; min_s.value = 15; min_v.value = 40;
+            } else {
+                min_h.value = 0; max_h.value = 25; min_s.value = 20; min_v.value = 50;
+            }
+            ['min_h', 'max_h', 'min_s', 'min_v'].forEach(id => {
+                document.getElementById('val_' + id).innerText = document.getElementById(id).value;
+            });
+        }
+
+        let stream = null;
+        let isProcessing = false;
+        let lastPred = '';
+        let sameFrameCount = 0;
+        let accumulatedText = '';
+
+        fetch('/api/gestures')
+            .then(res => res.json())
+            .then(data => {
+                gesturesList.innerHTML = data.map(g => `<span class="badge badge-gesture">${g}</span>`).join('');
+            });
+
+        startBtn.addEventListener('click', async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                video.srcObject = stream;
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                isProcessing = true;
+                threshPlaceholder.style.display = 'none';
+                threshImg.style.display = 'inline-block';
+                processLoop();
+            } catch (err) {
+                alert('Camera Access Error: ' + err.message);
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            isProcessing = false;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            threshPlaceholder.style.display = 'block';
+            threshImg.style.display = 'none';
+            predText.innerText = '--';
+            confBar.style.width = '0%';
+            confVal.innerText = '0%';
+        });
+
+        async function processLoop() {
+            if (!isProcessing) return;
+
+            sendCanvas.width = video.videoWidth || 640;
+            sendCanvas.height = video.videoHeight || 480;
+            const ctx = sendCanvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, sendCanvas.width, sendCanvas.height);
+            const dataUrl = sendCanvas.toDataURL('image/jpeg', 0.7);
+
+            try {
+                const response = await fetch('/api/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image: dataUrl,
+                        mode: modeSelect.value,
+                        min_h: min_h.value,
+                        max_h: max_h.value,
+                        min_s: min_s.value,
+                        min_v: min_v.value
+                    })
+                });
+                const res = await response.json();
+
+                if (res.pred_text) {
+                    predText.innerText = res.pred_text;
+                    confVal.innerText = res.confidence.toFixed(1) + '%';
+                    confBar.style.width = res.confidence + '%';
+
+                    if (res.pred_text === lastPred) {
+                        sameFrameCount++;
+                    } else {
+                        sameFrameCount = 0;
+                        lastPred = res.pred_text;
+                    }
+
+                    if (sameFrameCount > 8) {
+                        if (accumulatedText.length === 0 || accumulatedText.endsWith(' ')) {
+                            accumulatedText += res.pred_text;
+                        } else if (!accumulatedText.endsWith(res.pred_text)) {
+                            accumulatedText += ' ' + res.pred_text;
+                        }
+                        wordBox.innerText = accumulatedText;
+                        sameFrameCount = 0;
+                    }
+                } else {
+                    predText.innerText = '--';
+                    confBar.style.width = '0%';
+                    confVal.innerText = '0%';
+                }
+
+                if (res.thresh_img) {
+                    threshImg.src = 'data:image/jpeg;base64,' + res.thresh_img;
+                }
+            } catch (err) {
+                console.error(err);
+            }
+
+            setTimeout(processLoop, 150);
+        }
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            accumulatedText = '';
+            wordBox.innerText = '';
+        });
+
+        document.getElementById('speakBtn').addEventListener('click', () => {
+            if (accumulatedText && window.speechSynthesis) {
+                const utterance = new SpeechSynthesisUtterance(accumulatedText);
+                window.speechSynthesis.speak(utterance);
+            }
+        });
+    </script>
+</body>
+</html>
