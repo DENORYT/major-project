@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Language Interpreter - Web App</title>
+    <title>Indian Sign Language (ISL) Interpreter - Web App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
@@ -36,7 +36,7 @@
             border-radius: 8px;
         }
         .prediction-badge {
-            font-size: 2.5rem;
+            font-size: 2.2rem;
             font-weight: 700;
             color: #38bdf8;
         }
@@ -71,9 +71,9 @@
         <nav class="navbar navbar-expand-lg navbar-dark rounded-3 px-3 mb-4 card-custom">
             <div class="container-fluid">
                 <span class="navbar-brand fw-bold text-info fs-4">
-                    <i class="bi bi-hand-index-thumb-fill me-2"></i> Sign Language Interpreter
+                    <i class="bi bi-hand-index-thumb-fill me-2"></i> Indian Sign Language (ISL) Interpreter
                 </span>
-                <span class="badge bg-success px-3 py-2 fs-6">Live AI Interpreter</span>
+                <span class="badge bg-warning text-dark px-3 py-2 fs-6">ISL 2-Handed Mode 🇮🇳</span>
             </div>
         </nav>
 
@@ -82,7 +82,7 @@
             <div class="col-lg-7">
                 <div class="card card-custom p-3 mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5 class="m-0 text-light"><i class="bi bi-camera-video me-2"></i>Webcam Feed</h5>
+                        <h5 class="m-0 text-light"><i class="bi bi-camera-video me-2"></i>Webcam Feed (ISL 2-Handed Region)</h5>
                         <div>
                             <button id="startBtn" class="btn btn-primary btn-sm"><i class="bi bi-play-fill"></i> Start Camera</button>
                             <button id="stopBtn" class="btn btn-secondary btn-sm" disabled><i class="bi bi-stop-fill"></i> Stop</button>
@@ -93,12 +93,13 @@
                         <video id="webcam" autoplay playsinline muted></video>
                         <canvas id="sendCanvas" style="display:none;"></canvas>
                     </div>
+                    <small class="text-muted mt-2 d-block text-center">Center both hands inside the wide frame for 2-handed ISL gestures (A, B, D, E, F, etc.).</small>
                 </div>
 
                 <!-- Threshold Mask Tuning Controls -->
                 <div class="card card-custom p-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="text-light m-0"><i class="bi bi-sliders me-2"></i>Threshold Mask Calibrator</h6>
+                        <h6 class="text-light m-0"><i class="bi bi-sliders me-2"></i>ISL Skin Mask Calibrator</h6>
                         <select id="modeSelect" class="form-select form-select-sm w-auto bg-dark text-light border-secondary">
                             <option value="adaptive" selected>Adaptive Hybrid Mode</option>
                             <option value="otsu">Otsu Auto Threshold</option>
@@ -155,12 +156,12 @@
             <div class="col-lg-5">
                 <!-- Current Prediction -->
                 <div class="card card-custom p-3 mb-3 text-center">
-                    <h6 class="text-muted text-uppercase fw-bold mb-1">Detected Gesture</h6>
+                    <h6 class="text-muted text-uppercase fw-bold mb-1">Detected ISL Gesture</h6>
                     <div id="predText" class="prediction-badge my-1">--</div>
                     <div class="mb-2">
                         <small class="text-muted">Confidence: <span id="confVal">0%</span></small>
                         <div class="progress confidence-meter mt-1">
-                            <div id="confBar" class="progress-bar bg-info" role="progressbar" style="width: 0%"></div>
+                            <div id="confBar" class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
                         </div>
                     </div>
                 </div>
@@ -168,18 +169,18 @@
                 <!-- Text Sentence Accumulator -->
                 <div class="card card-custom p-3 mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="text-light m-0"><i class="bi bi-chat-left-text me-2"></i>Interpreted Text</h6>
+                        <h6 class="text-light m-0"><i class="bi bi-chat-left-text me-2"></i>Interpreted ISL Text</h6>
                         <div>
                             <button id="speakBtn" class="btn btn-outline-info btn-sm"><i class="bi bi-volume-up"></i> Speak</button>
                             <button id="clearBtn" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i> Clear</button>
                         </div>
                     </div>
-                    <div id="wordBox" class="word-output text-info fw-bold"></div>
+                    <div id="wordBox" class="word-output text-warning fw-bold"></div>
                 </div>
 
                 <!-- Database Gestures List -->
                 <div class="card card-custom p-3">
-                    <h6 class="text-light mb-2"><i class="bi bi-grid-3x3-gap me-2"></i>Supported Gestures (44 Labels)</h6>
+                    <h6 class="text-light mb-2"><i class="bi bi-grid-3x3-gap me-2"></i>Supported ISL Classes (36 Gestures: A-Z, 0-9)</h6>
                     <div id="gesturesList" class="d-flex flex-wrap max-h-150 overflow-auto" style="max-height: 180px;">
                     </div>
                 </div>
@@ -201,7 +202,6 @@
         const gesturesList = document.getElementById('gesturesList');
         const modeSelect = document.getElementById('modeSelect');
 
-        // Sliders
         const min_h = document.getElementById('min_h');
         const max_h = document.getElementById('max_h');
         const min_s = document.getElementById('min_s');
@@ -306,9 +306,9 @@
 
                     if (sameFrameCount > 8) {
                         if (accumulatedText.length === 0 || accumulatedText.endsWith(' ')) {
-                            accumulatedText += res.pred_text;
+                            accumulatedText += res.pred_text.replace(/ISL\s+/g, '');
                         } else if (!accumulatedText.endsWith(res.pred_text)) {
-                            accumulatedText += ' ' + res.pred_text;
+                            accumulatedText += ' ' + res.pred_text.replace(/ISL\s+/g, '');
                         }
                         wordBox.innerText = accumulatedText;
                         sameFrameCount = 0;
