@@ -4,3 +4,11 @@ __pycache__/
 *.pyo
 .DS_Store
 *.log
+
+# Model files (too large for GitHub - download separately)
+*.task
+*.h5
+*.pkl
+
+# Training data
+landmark_data.csv
