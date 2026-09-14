@@ -347,12 +347,21 @@
                         lastPred = res.pred_text;
                     }
 
-                    if (sameCount >= 10) {  // ~1.5 seconds at 150ms interval
-                        // Extract just the letter/number (before any slash or paren)
-                        let letter = res.pred_text.split('/')[0].split('(')[0].trim();
-                        if (letter.length <= 3 && !sentence.endsWith(letter)) {
-                            sentence += letter;
-                            sentenceBox.innerText = sentence;
+                    if (sameCount >= 8) {  // ~1.2 seconds 
+                        // Extract the primary letter/number using regex from ISL labels
+                        // Matches "ISL: A", "ISL: 0", etc.
+                        let match = res.pred_text.match(/ISL:\s*([A-Z0-9])/i);
+                        if (match) {
+                            let letter = match[1].toUpperCase();
+                            // Don't add the exact same letter twice in a row without a break
+                            if (!sentence.endsWith(letter)) {
+                                sentence += letter;
+                                sentenceBox.innerText = sentence;
+                                
+                                // Quick visual flash to confirm addition
+                                sentenceBox.style.borderColor = '#3b82f6';
+                                setTimeout(() => sentenceBox.style.borderColor = '#22c55e', 400);
+                            }
                         }
                         sameCount = 0;
                     }
