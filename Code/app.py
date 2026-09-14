@@ -75,91 +75,138 @@ def get_finger_states(landmarks, handedness='Right'):
     return fingers
 
 
-def classify_by_fingers(finger_states, landmarks, handedness='Right'):
+def classify_isl_single_hand(finger_states, landmarks, handedness='Right'):
     """
-    Classify hand gesture based on finger positions.
-    This provides instant recognition without any ML training.
-    Returns (letter, confidence).
+    Classify ISL (Indian Sign Language) gestures from a single hand.
+    ISL one-handed signs: C, I, L, O, U, V and numbers 0-9.
+    Returns (label, confidence).
     """
     thumb, index, middle, ring, pinky = finger_states
     total_up = sum(finger_states)
 
-    # === NUMBERS ===
+    # ── ISL Numbers (0-9) ─────────────────────────────────
     if total_up == 0:
-        return "0 (Fist)", 90.0
+        # Check if it's a fist (0) or curved C/O shape
+        thumb_tip = landmarks[THUMB_TIP]
+        index_tip = landmarks[INDEX_TIP]
+        dist = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
+        if dist < 0.05:
+            return "ISL: O (ओ)", 85.0
+        elif dist > 0.08:
+            return "ISL: C (सी)", 82.0
+        else:
+            return "ISL: 0 (शून्य)", 88.0
 
     if total_up == 1:
         if index:
-            return "1", 92.0
+            # Index finger pointing up = ISL 1
+            return "ISL: 1 (एक)", 92.0
         if thumb:
-            return "Thumbs Up", 95.0
+            # Thumb up = ISL "good" / thumbs up gesture
+            return "ISL: अच्छा (Good)", 90.0
         if pinky:
-            return "I", 88.0
+            # Pinky up = ISL I
+            return "ISL: I (आई)", 88.0
 
     if total_up == 2:
         if index and middle:
-            # Check if fingers are spread (V) or together (U)
             idx_x = landmarks[INDEX_TIP].x
             mid_x = landmarks[MIDDLE_TIP].x
             spread = abs(idx_x - mid_x)
             if spread > 0.05:
-                return "V / 2", 92.0
+                return "ISL: V (वी) / 2 (दो)", 92.0
             else:
-                return "U / 2", 88.0
+                return "ISL: U (यू) / 2 (दो)", 88.0
         if thumb and index:
-            return "L", 90.0
+            return "ISL: L (एल)", 90.0
         if thumb and pinky:
-            return "Y", 90.0
+            return "ISL: Y (वाय)", 88.0
         if index and pinky:
-            return "Rock On", 85.0
+            return "ISL: 🤘", 82.0
 
     if total_up == 3:
         if index and middle and ring:
-            return "W / 3", 88.0
+            return "ISL: W (डब्ल्यू) / 3 (तीन)", 88.0
         if thumb and index and middle:
-            return "3", 85.0
-        if thumb and index and pinky:
-            return "Spider-Man", 82.0
+            return "ISL: 3 (तीन)", 85.0
 
     if total_up == 4:
         if not thumb:
-            return "4 / B", 88.0
-        if not pinky:
-            return "4", 85.0
+            return "ISL: 4 (चार)", 88.0
 
     if total_up == 5:
-        return "5 / Open Hand", 92.0
+        return "ISL: 5 (पाँच) / खुला हाथ", 92.0
 
-    # === LETTER-SPECIFIC (using more detailed geometry) ===
-
-    # A: fist with thumb alongside
+    # Thumb alongside fist = ISL A (one-hand variant)
     if total_up == 0 or (total_up == 1 and thumb):
         thumb_y = landmarks[THUMB_TIP].y
         index_mcp_y = landmarks[INDEX_MCP].y
         if thumb_y < index_mcp_y:
-            return "A", 85.0
+            return "ISL: A (ए)", 82.0
 
-    # C: curved hand (all fingers partially bent)
-    if total_up == 0:
-        thumb_tip = landmarks[THUMB_TIP]
-        index_tip = landmarks[INDEX_TIP]
-        dist = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
-        if dist > 0.08:
-            return "C", 80.0
+    return f"ISL: ? ({total_up} उँगलियाँ)", 45.0
 
-    # D: index up, others touching thumb
-    if total_up == 1 and index:
-        return "D", 85.0
 
-    # O: all fingers curved to form circle
-    if total_up == 0:
-        thumb_tip = landmarks[THUMB_TIP]
-        index_tip = landmarks[INDEX_TIP]
-        dist = math.sqrt((thumb_tip.x - index_tip.x)**2 + (thumb_tip.y - index_tip.y)**2)
-        if dist < 0.06:
-            return "O", 82.0
+def classify_isl_two_hands(hand1_fingers, hand2_fingers, hand1_lms, hand2_lms):
+    """
+    Classify ISL two-handed alphabet gestures.
+    Many ISL letters (A, B, D, E, F, G, H, K, M, N, P, Q, R, S, T, X, Z)
+    are two-handed signs where both hands form specific shapes together.
+    """
+    total1 = sum(hand1_fingers)
+    total2 = sum(hand2_fingers)
+    total_both = total1 + total2
 
-    return f"? ({total_up} fingers)", 50.0
+    # Both fists touching = ISL: A (ए)
+    if total1 == 0 and total2 == 0:
+        return "ISL: A (ए) [2-Handed]", 88.0
+
+    # Both hands open = ISL: B (बी)
+    if total1 == 5 and total2 == 5:
+        return "ISL: B (बी) [2-Handed]", 90.0
+
+    # One fist + one open = ISL: D (डी)
+    if (total1 == 0 and total2 == 5) or (total1 == 5 and total2 == 0):
+        return "ISL: D (डी) [2-Handed]", 85.0
+
+    # Both hands index pointing = ISL: H (एच)
+    if (total1 == 1 and hand1_fingers[1]) and (total2 == 1 and hand2_fingers[1]):
+        return "ISL: H (एच) [2-Handed]", 86.0
+
+    # One hand index + one fist = ISL: G (जी)
+    if (total1 == 1 and hand1_fingers[1] and total2 == 0) or \
+       (total2 == 1 and hand2_fingers[1] and total1 == 0):
+        return "ISL: G (जी) [2-Handed]", 84.0
+
+    # One hand V + one fist = ISL: K (के)
+    t1_idx_mid = hand1_fingers[1] and hand1_fingers[2] and total1 == 2
+    t2_idx_mid = hand2_fingers[1] and hand2_fingers[2] and total2 == 2
+    if (t1_idx_mid and total2 == 0) or (t2_idx_mid and total1 == 0):
+        return "ISL: K (के) [2-Handed]", 83.0
+
+    # Both V signs = ISL: X (एक्स)
+    if t1_idx_mid and t2_idx_mid:
+        return "ISL: X (एक्स) [2-Handed]", 84.0
+
+    # One open hand + one index = ISL: P (पी)
+    if (total1 == 5 and total2 == 1 and hand2_fingers[1]) or \
+       (total2 == 5 and total1 == 1 and hand1_fingers[1]):
+        return "ISL: P (पी) [2-Handed]", 83.0
+
+    # Both hands 3 fingers = ISL: M (एम)
+    if total1 == 3 and total2 == 3:
+        return "ISL: M (एम) [2-Handed]", 82.0
+
+    # Both hands 4 fingers = ISL: N (एन)  
+    if total1 == 4 and total2 == 4:
+        return "ISL: N (एन) [2-Handed]", 82.0
+
+    # One open + one V = ISL: R (आर)
+    if (total1 == 5 and t2_idx_mid) or (total2 == 5 and t1_idx_mid):
+        return "ISL: R (आर) [2-Handed]", 82.0
+
+    # Fallback for unrecognized 2-hand combo
+    return f"ISL: 2-हाथ ({total1}+{total2} उँगलियाँ)", 50.0
 
 
 def normalize_landmarks(landmarks):
@@ -173,8 +220,8 @@ def normalize_landmarks(landmarks):
 
 def classify_gesture(landmarks, handedness='Right'):
     """
-    Main classification function.
-    Uses trained model if available, otherwise falls back to geometric heuristics.
+    Main classification function for single hand.
+    Uses trained model if available, otherwise falls back to ISL geometric heuristics.
     """
     # Try sklearn model first (if trained)
     if sklearn_model is not None and sklearn_labels is not None:
@@ -189,9 +236,9 @@ def classify_gesture(landmarks, handedness='Right'):
         except Exception:
             pass
 
-    # Fallback: geometric finger-state classifier
+    # Fallback: ISL geometric finger-state classifier
     finger_states = get_finger_states(landmarks, handedness)
-    return classify_by_fingers(finger_states, landmarks, handedness)
+    return classify_isl_single_hand(finger_states, landmarks, handedness)
 
 
 # ── Drawing Utilities ─────────────────────────────────────────
@@ -276,16 +323,40 @@ def predict():
         predictions = []
 
         if result.hand_landmarks:
+            # Collect finger states for all hands
+            all_finger_states = []
+            all_handedness = []
             for i, hand_lms in enumerate(result.hand_landmarks):
-                # Get handedness
                 handedness = 'Right'
                 if result.handedness and i < len(result.handedness):
                     handedness = result.handedness[i][0].category_name
+                all_handedness.append(handedness)
+                all_finger_states.append(get_finger_states(hand_lms, handedness))
 
-                # Classify the gesture
+            # ── 2-HAND ISL DETECTION ──────────────────────────
+            if len(result.hand_landmarks) >= 2:
+                label, confidence = classify_isl_two_hands(
+                    all_finger_states[0], all_finger_states[1],
+                    result.hand_landmarks[0], result.hand_landmarks[1]
+                )
+
+                # Draw both hands
+                for i, hand_lms in enumerate(result.hand_landmarks[:2]):
+                    img_resize = draw_hand_landmarks(
+                        img_resize, hand_lms, label if i == 0 else "", confidence if i == 0 else 0
+                    )
+
+                predictions.append({
+                    'label': label,
+                    'confidence': confidence,
+                    'handedness': '2-Handed ISL'
+                })
+
+            # ── 1-HAND ISL DETECTION ──────────────────────────
+            else:
+                hand_lms = result.hand_landmarks[0]
+                handedness = all_handedness[0]
                 label, confidence = classify_gesture(hand_lms, handedness)
-
-                # Draw on frame
                 img_resize = draw_hand_landmarks(img_resize, hand_lms, label, confidence)
 
                 predictions.append({
@@ -323,11 +394,33 @@ def predict():
 
 @app.route('/api/gestures')
 def get_gestures():
-    """Return list of recognizable gestures."""
+    """Return list of recognizable ISL gestures."""
     gestures = [
-        "0 (Fist)", "1", "2 / V", "3", "4 / B", "5 / Open Hand",
-        "A", "C", "D", "I", "L", "O", "U", "V", "W", "Y",
-        "Thumbs Up", "Rock On", "Spider-Man"
+        "── 1-Hand ISL Signs ──",
+        "0 (शून्य) - Fist",
+        "1 (एक) - Index up",
+        "2 (दो) / V - Index+Middle",
+        "3 (तीन) - Thumb+Index+Middle",
+        "4 (चार) - Four fingers",
+        "5 (पाँच) - Open hand",
+        "C (सी) - Curved hand",
+        "I (आई) - Pinky up",
+        "L (एल) - Thumb+Index",
+        "O (ओ) - Circle shape",
+        "U (यू) - Index+Middle together",
+        "Y (वाय) - Thumb+Pinky",
+        "── 2-Hand ISL Signs ──",
+        "A (ए) - Both fists",
+        "B (बी) - Both open",
+        "D (डी) - Fist+Open",
+        "G (जी) - Index+Fist",
+        "H (एच) - Both index",
+        "K (के) - V+Fist",
+        "M (एम) - Both 3 fingers",
+        "N (एन) - Both 4 fingers",
+        "P (पी) - Open+Index",
+        "R (आर) - Open+V",
+        "X (एक्स) - Both V signs",
     ]
     if sklearn_labels:
         gestures = list(sklearn_labels.values()) if isinstance(sklearn_labels, dict) else list(sklearn_labels)
