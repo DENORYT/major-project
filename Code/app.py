@@ -76,10 +76,23 @@ def get_finger_states(landmarks, handedness='Right'):
 def classify_isl_single_hand(finger_states, landmarks, handedness='Right'):
     """
     True ISL rules for 1-handed signs (Numbers 1-9, C, L).
+    Highly forgiving logic.
     """
     up_count = sum(finger_states)
     
-    # Numbers
+    # ── Forgiving Letters ──
+    # Letter C (Thumb & Index curved, distance is moderate)
+    dist_c = get_distance(landmarks[THUMB_TIP], landmarks[INDEX_TIP])
+    if not finger_states[2] and not finger_states[3] and not finger_states[4]:
+        if 0.03 < dist_c < 0.12:
+            return "ISL: C (सी)", 85.0
+            
+    # Letter L (Thumb & Index extended, distance is large)
+    if finger_states[0] and finger_states[1] and not finger_states[2] and not finger_states[3]:
+        if dist_c > 0.15:
+            return "ISL: L (एल)", 88.0
+
+    # ── Numbers ──
     if up_count == 1 and finger_states[1]: return "ISL: 1 (एक)", 95.0
     if up_count == 2 and finger_states[1] and finger_states[2]:
         spread = get_distance(landmarks[INDEX_TIP], landmarks[MIDDLE_TIP])
@@ -90,18 +103,6 @@ def classify_isl_single_hand(finger_states, landmarks, handedness='Right'):
         return "ISL: 4 (चार)", 90.0
     if up_count == 5: 
         return "ISL: 5 (पाँच)", 92.0
-    
-    # Letter C (Thumb & Index curved, others folded)
-    if not finger_states[2] and not finger_states[3] and not finger_states[4]:
-        d = get_distance(landmarks[THUMB_TIP], landmarks[INDEX_TIP])
-        if 0.04 < d < 0.15:
-            return "ISL: C (सी)", 85.0
-            
-    # Letter L (Thumb & Index extended)
-    if finger_states[0] and finger_states[1] and not finger_states[2] and not finger_states[3] and not finger_states[4]:
-        d = get_distance(landmarks[THUMB_TIP], landmarks[INDEX_TIP])
-        if d > 0.15:
-            return "ISL: L (एल)", 88.0
 
     if up_count == 0:
         return "ISL: 0 (शून्य)", 85.0
@@ -112,48 +113,42 @@ def classify_isl_single_hand(finger_states, landmarks, handedness='Right'):
 def classify_isl_two_hands(f1, f2, lms1, lms2):
     """
     True ISL 2-handed alphabet logic.
-    Uses exact spatial interactions (e.g. index pointing to thumb = A).
+    Ultra-forgiving: heavily relies on joint proximity rather than strict finger states.
     """
-    # Test both permutations (Hand1 = Base/Target, Hand2 = Pointer, and vice-versa)
     for base_lms, ptr_lms, base_f, ptr_f in [(lms1, lms2, f1, f2), (lms2, lms1, f2, f1)]:
         
-        # 1. ISL Vowels (Pointer index touches Base fingertips)
-        # Pointer must have ONLY index extended
-        if ptr_f[1] and not ptr_f[2] and not ptr_f[3] and not ptr_f[4]:
-            ptr_tip = ptr_lms[INDEX_TIP]
-            
-            # Increased distance threshold to 0.12 for easier detection
-            if get_distance(ptr_tip, base_lms[THUMB_TIP]) < 0.12: return "ISL: A (ए)", 90.0
-            if get_distance(ptr_tip, base_lms[INDEX_TIP]) < 0.12: return "ISL: E (ई)", 90.0
-            if get_distance(ptr_tip, base_lms[MIDDLE_TIP]) < 0.12: return "ISL: I (आई)", 90.0
-            if get_distance(ptr_tip, base_lms[RING_TIP]) < 0.12: return "ISL: O (ओ)", 90.0
-            if get_distance(ptr_tip, base_lms[PINKY_TIP]) < 0.12: return "ISL: U (यू)", 90.0
+        ptr_tip = ptr_lms[INDEX_TIP]
+        
+        # 1. ISL Vowels: Pointer Index touches Base fingertips
+        # We don't care if other fingers are messy, as long as the touch is clear!
+        if get_distance(ptr_tip, base_lms[THUMB_TIP]) < 0.10: return "ISL: A (ए)", 90.0
+        if get_distance(ptr_tip, base_lms[INDEX_TIP]) < 0.10: return "ISL: E (ई)", 90.0
+        if get_distance(ptr_tip, base_lms[MIDDLE_TIP]) < 0.10: return "ISL: I (आई)", 90.0
+        if get_distance(ptr_tip, base_lms[RING_TIP]) < 0.10: return "ISL: O (ओ)", 90.0
+        if get_distance(ptr_tip, base_lms[PINKY_TIP]) < 0.10: return "ISL: U (यू)", 90.0
             
         # 2. Consonants touching palm (M, N, V)
         base_palm = base_lms[9] # MIDDLE_MCP is roughly palm center
         
-        # M: 3 fingers (Index, Middle, Ring) on palm
-        if ptr_f[1] and ptr_f[2] and ptr_f[3] and not ptr_f[4]:
-            if get_distance(ptr_lms[MIDDLE_TIP], base_palm) < 0.20:
-                return "ISL: M (एम)", 88.0
-                
-        # N / V: 2 fingers on palm
-        if ptr_f[1] and ptr_f[2] and not ptr_f[3] and not ptr_f[4]:
-            if get_distance(ptr_lms[MIDDLE_TIP], base_palm) < 0.20:
-                spread = get_distance(ptr_lms[INDEX_TIP], ptr_lms[MIDDLE_TIP])
-                if spread > 0.06: return "ISL: V (वी)", 88.0
-                else: return "ISL: N (एन)", 88.0
+        d_idx = get_distance(ptr_lms[INDEX_TIP], base_palm)
+        d_mid = get_distance(ptr_lms[MIDDLE_TIP], base_palm)
+        d_ring = get_distance(ptr_lms[RING_TIP], base_palm)
+        
+        if d_idx < 0.15 and d_mid < 0.15 and d_ring < 0.15:
+            return "ISL: M (एम)", 88.0
+        elif d_idx < 0.15 and d_mid < 0.15:
+            spread = get_distance(ptr_lms[INDEX_TIP], ptr_lms[MIDDLE_TIP])
+            if spread > 0.05: return "ISL: V (वी)", 88.0
+            else: return "ISL: N (एन)", 88.0
                 
         # 3. Letter D: Pointer Index+Thumb touch Base Index
-        if base_f[1] and not base_f[2] and not base_f[3] and not base_f[4]:
-            if get_distance(ptr_lms[INDEX_TIP], base_lms[INDEX_TIP]) < 0.15 and \
-               get_distance(ptr_lms[THUMB_TIP], base_lms[INDEX_MCP]) < 0.18:
-                return "ISL: D (डी)", 85.0
+        if get_distance(ptr_lms[INDEX_TIP], base_lms[INDEX_TIP]) < 0.15 and \
+           get_distance(ptr_lms[THUMB_TIP], base_lms[INDEX_MCP]) < 0.15:
+            return "ISL: D (डी)", 85.0
                 
         # 4. Letter B: Both hands open, sides touching
-        if sum(base_f) == 5 and sum(ptr_f) == 5:
-            if get_distance(base_lms[INDEX_MCP], ptr_lms[INDEX_MCP]) < 0.18:
-                return "ISL: B (बी)", 85.0
+        if get_distance(base_lms[INDEX_MCP], ptr_lms[INDEX_MCP]) < 0.10 and base_f[1] and ptr_f[1]:
+            return "ISL: B (बी)", 85.0
 
     return "Unknown", 0.0
 
