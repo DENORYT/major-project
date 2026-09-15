@@ -122,40 +122,40 @@ def classify_isl_two_hands(f1, f2, lms1, lms2):
         if ptr_f[1] and not ptr_f[2] and not ptr_f[3] and not ptr_f[4]:
             ptr_tip = ptr_lms[INDEX_TIP]
             
-            # Distance threshold for touching
-            if get_distance(ptr_tip, base_lms[THUMB_TIP]) < 0.08: return "ISL: A (ए)", 90.0
-            if get_distance(ptr_tip, base_lms[INDEX_TIP]) < 0.08: return "ISL: E (ई)", 90.0
-            if get_distance(ptr_tip, base_lms[MIDDLE_TIP]) < 0.08: return "ISL: I (आई)", 90.0
-            if get_distance(ptr_tip, base_lms[RING_TIP]) < 0.08: return "ISL: O (ओ)", 90.0
-            if get_distance(ptr_tip, base_lms[PINKY_TIP]) < 0.08: return "ISL: U (यू)", 90.0
+            # Increased distance threshold to 0.12 for easier detection
+            if get_distance(ptr_tip, base_lms[THUMB_TIP]) < 0.12: return "ISL: A (ए)", 90.0
+            if get_distance(ptr_tip, base_lms[INDEX_TIP]) < 0.12: return "ISL: E (ई)", 90.0
+            if get_distance(ptr_tip, base_lms[MIDDLE_TIP]) < 0.12: return "ISL: I (आई)", 90.0
+            if get_distance(ptr_tip, base_lms[RING_TIP]) < 0.12: return "ISL: O (ओ)", 90.0
+            if get_distance(ptr_tip, base_lms[PINKY_TIP]) < 0.12: return "ISL: U (यू)", 90.0
             
         # 2. Consonants touching palm (M, N, V)
         base_palm = base_lms[9] # MIDDLE_MCP is roughly palm center
         
         # M: 3 fingers (Index, Middle, Ring) on palm
         if ptr_f[1] and ptr_f[2] and ptr_f[3] and not ptr_f[4]:
-            if get_distance(ptr_lms[MIDDLE_TIP], base_palm) < 0.15:
+            if get_distance(ptr_lms[MIDDLE_TIP], base_palm) < 0.20:
                 return "ISL: M (एम)", 88.0
                 
         # N / V: 2 fingers on palm
         if ptr_f[1] and ptr_f[2] and not ptr_f[3] and not ptr_f[4]:
-            if get_distance(ptr_lms[MIDDLE_TIP], base_palm) < 0.15:
+            if get_distance(ptr_lms[MIDDLE_TIP], base_palm) < 0.20:
                 spread = get_distance(ptr_lms[INDEX_TIP], ptr_lms[MIDDLE_TIP])
                 if spread > 0.06: return "ISL: V (वी)", 88.0
                 else: return "ISL: N (एन)", 88.0
                 
         # 3. Letter D: Pointer Index+Thumb touch Base Index
         if base_f[1] and not base_f[2] and not base_f[3] and not base_f[4]:
-            if get_distance(ptr_lms[INDEX_TIP], base_lms[INDEX_TIP]) < 0.12 and \
-               get_distance(ptr_lms[THUMB_TIP], base_lms[INDEX_MCP]) < 0.12:
+            if get_distance(ptr_lms[INDEX_TIP], base_lms[INDEX_TIP]) < 0.15 and \
+               get_distance(ptr_lms[THUMB_TIP], base_lms[INDEX_MCP]) < 0.18:
                 return "ISL: D (डी)", 85.0
                 
         # 4. Letter B: Both hands open, sides touching
         if sum(base_f) == 5 and sum(ptr_f) == 5:
-            if get_distance(base_lms[INDEX_MCP], ptr_lms[INDEX_MCP]) < 0.12:
+            if get_distance(base_lms[INDEX_MCP], ptr_lms[INDEX_MCP]) < 0.18:
                 return "ISL: B (बी)", 85.0
 
-    return "ISL: 2-Hand (Unknown)", 50.0
+    return "Unknown", 0.0
 
 
 def normalize_landmarks(landmarks):
@@ -271,47 +271,43 @@ def predict():
         predictions = []
 
         if result.hand_landmarks:
-            # Collect finger states for all hands
-            all_finger_states = []
-            all_handedness = []
-            for i, hand_lms in enumerate(result.hand_landmarks):
-                handedness = 'Right'
-                if result.handedness and i < len(result.handedness):
-                    handedness = result.handedness[i][0].category_name
-                all_handedness.append(handedness)
-                all_finger_states.append(get_finger_states(hand_lms, handedness))
+            predictions = []
+            
+            # Pre-calculate finger states for all hands
+            all_finger_states = [get_finger_states(lms, result.handedness[i][0].category_name) 
+                                 for i, lms in enumerate(result.hand_landmarks)]
+            all_handedness = [result.handedness[i][0].category_name for i in range(len(result.hand_landmarks))]
 
-            # ── 2-HAND ISL DETECTION ──────────────────────────
+            # ── 2-Hand Logic ────────────────────────────────────
             if len(result.hand_landmarks) >= 2:
+                # Try to classify as a 2-handed interacting ISL sign
                 label, confidence = classify_isl_two_hands(
-                    all_finger_states[0], all_finger_states[1],
+                    all_finger_states[0], all_finger_states[1], 
                     result.hand_landmarks[0], result.hand_landmarks[1]
                 )
-
-                # Draw both hands
-                for i, hand_lms in enumerate(result.hand_landmarks[:2]):
-                    img_resize = draw_hand_landmarks(
-                        img_resize, hand_lms, label if i == 0 else "", confidence if i == 0 else 0
-                    )
-
-                predictions.append({
-                    'label': label,
-                    'confidence': confidence,
-                    'handedness': '2-Handed ISL'
-                })
-
-            # ── 1-HAND ISL DETECTION ──────────────────────────
+                
+                if confidence > 50:
+                    # Successfully found a 2-handed interaction! Draw on both hands.
+                    for i, hand_lms in enumerate(result.hand_landmarks[:2]):
+                        img_resize = draw_hand_landmarks(
+                            img_resize, hand_lms, label if i == 0 else "-->", confidence if i == 0 else 0
+                        )
+                    predictions.append({'label': label, 'confidence': confidence, 'handedness': '2-Handed ISL'})
+                else:
+                    # 2 hands present, but NO interaction. Treat as two separate 1-handed signs!
+                    for i, hand_lms in enumerate(result.hand_landmarks):
+                        h_label, h_conf = classify_gesture(hand_lms, all_handedness[i])
+                        img_resize = draw_hand_landmarks(img_resize, hand_lms, h_label, h_conf)
+                        predictions.append({'label': h_label, 'confidence': h_conf, 'handedness': all_handedness[i]})
+            
+            # ── 1-Hand Logic ────────────────────────────────────
             else:
+                # Only 1 hand on screen
                 hand_lms = result.hand_landmarks[0]
                 handedness = all_handedness[0]
                 label, confidence = classify_gesture(hand_lms, handedness)
                 img_resize = draw_hand_landmarks(img_resize, hand_lms, label, confidence)
-
-                predictions.append({
-                    'label': label,
-                    'confidence': confidence,
-                    'handedness': handedness
-                })
+                predictions.append({'label': label, 'confidence': confidence, 'handedness': handedness})
 
         # Encode annotated frame
         _, buf_frame = cv2.imencode('.jpg', img_resize, [cv2.IMWRITE_JPEG_QUALITY, 80])
