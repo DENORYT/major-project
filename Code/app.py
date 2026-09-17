@@ -161,21 +161,29 @@ def classify_isl_two_hands(f1, f2, lms1, lms2):
         def rel_dist(lm1, lm2):
             return get_distance(lm1, lm2) / palm_size
         
-        # 1. ISL Vowels: Pointer Index touches Base fingertips
-        # A relative distance of < 0.7 means they are touching (scaled to hand size)
+        # ── MISSING NUMBERS (6, 7, 8, 9) ──
+        # ISL 6-9 are often signed as 5 on one hand, and 1-4 on the other.
+        if sum(base_f) == 5:
+            ptr_up = sum(ptr_f)
+            if ptr_up == 1: return "ISL: 6 (छह)", 90.0
+            if ptr_up == 2: return "ISL: 7 (सात)", 90.0
+            if ptr_up == 3: return "ISL: 8 (आठ)", 90.0
+            if ptr_up == 4: return "ISL: 9 (नौ)", 90.0
+        
+        # ── VOWELS (A, E, I, O, U) ──
         if rel_dist(ptr_tip, base_lms[THUMB_TIP]) < 0.7: return "ISL: A (ए)", 90.0
         if rel_dist(ptr_tip, base_lms[INDEX_TIP]) < 0.7: return "ISL: E (ई)", 90.0
         if rel_dist(ptr_tip, base_lms[MIDDLE_TIP]) < 0.7: return "ISL: I (आई)", 90.0
         if rel_dist(ptr_tip, base_lms[RING_TIP]) < 0.7: return "ISL: O (ओ)", 90.0
         if rel_dist(ptr_tip, base_lms[PINKY_TIP]) < 0.7: return "ISL: U (यू)", 90.0
             
-        # 2. Consonants touching palm (M, N, V)
-        base_palm = base_lms[9] # MIDDLE_MCP is roughly palm center
-        
+        # ── CONSONANTS ──
+        base_palm = base_lms[9]
         d_idx = rel_dist(ptr_lms[INDEX_TIP], base_palm)
         d_mid = rel_dist(ptr_lms[MIDDLE_TIP], base_palm)
         d_ring = rel_dist(ptr_lms[RING_TIP], base_palm)
         
+        # M, N, V
         if d_idx < 1.2 and d_mid < 1.2 and d_ring < 1.2:
             return "ISL: M (एम)", 88.0
         elif d_idx < 1.2 and d_mid < 1.2:
@@ -183,15 +191,31 @@ def classify_isl_two_hands(f1, f2, lms1, lms2):
             if spread > 0.5: return "ISL: V (वी)", 88.0
             else: return "ISL: N (एन)", 88.0
                 
-        # 3. Letter D: Pointer Index+Thumb touch Base Index
+        # D and P (Pointer touching Base Index)
         if rel_dist(ptr_lms[INDEX_TIP], base_lms[INDEX_TIP]) < 1.0 and \
            rel_dist(ptr_lms[THUMB_TIP], base_lms[INDEX_MCP]) < 1.0:
             return "ISL: D (डी)", 85.0
-                
-        # 4. Letter B: Both hands open, sides touching
-        if rel_dist(base_lms[INDEX_MCP], ptr_lms[INDEX_MCP]) < 0.8 and base_f[1] and ptr_f[1]:
+            
+        # B (Hands open, sides touching)
+        if rel_dist(base_lms[INDEX_MCP], ptr_lms[INDEX_MCP]) < 0.8 and sum(base_f) >= 4 and sum(ptr_f) >= 4:
             return "ISL: B (बी)", 85.0
-
+            
+        # X (Index fingers crossing/touching)
+        if rel_dist(ptr_lms[INDEX_TIP], base_lms[INDEX_TIP]) < 0.8 and ptr_f[1] and base_f[1] and not ptr_f[2] and not base_f[2]:
+            return "ISL: X (एक्स)", 85.0
+            
+        # S (Pinkies hooking/touching)
+        if rel_dist(ptr_lms[PINKY_TIP], base_lms[PINKY_TIP]) < 0.8 and ptr_f[4] and base_f[4]:
+            return "ISL: S (एस)", 85.0
+            
+        # T (Pointer index resting on base palm)
+        if rel_dist(ptr_lms[INDEX_TIP], base_palm) < 0.8 and ptr_f[1] and sum(base_f) >= 4:
+            return "ISL: T (टी)", 85.0
+            
+        # W (Fingers interlocked - Index to Index, Middle to Middle)
+        if rel_dist(ptr_lms[INDEX_TIP], base_lms[INDEX_TIP]) < 0.8 and rel_dist(ptr_lms[MIDDLE_TIP], base_lms[MIDDLE_TIP]) < 0.8:
+            return "ISL: W (डब्लू)", 80.0
+            
     return "Unknown", 0.0
 
 
@@ -387,6 +411,7 @@ def get_gestures():
         "C (सी) - Curved hand",
         "L (एल) - Thumb+Index",
         "── 2-Hand ISL Signs (True Spatial) ──",
+        "6-9 (छह-नौ) - Base 5 + Pointer 1-4",
         "A (ए) - Index points to Thumb tip",
         "B (बी) - Open hands touching sides",
         "D (डी) - D shape (Pointer touches Base)",
@@ -395,8 +420,12 @@ def get_gestures():
         "M (एम) - 3 fingers on palm",
         "N (एन) - 2 fingers on palm",
         "O (ओ) - Index points to Ring tip",
+        "S (एस) - Pinkies hooked together",
+        "T (टी) - Pointer index on base palm",
         "U (यू) - Index points to Pinky tip",
         "V (वी) - V fingers on palm",
+        "W (डब्लू) - Fingers interlocked",
+        "X (एक्स) - Index fingers crossed",
     ]
     if sklearn_labels:
         gestures = list(sklearn_labels.values()) if isinstance(sklearn_labels, dict) else list(sklearn_labels)
