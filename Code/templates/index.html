@@ -352,7 +352,7 @@
                     }
 
                     if (sameCount >= 8) {  // ~1.2 seconds 
-                        let match = res.pred_text.match(/ISL:\s*([A-Z0-9]|SPACE|DEL)/i);
+                        let match = res.pred_text.match(/ISL:\s*([A-Z0-9]+|SPACE|DEL)/i);
                         if (match) {
                             let val = match[1].toUpperCase();
                             
@@ -364,6 +364,9 @@
                                     if (!sentence.endsWith(' ')) sentence += ' ';
                                 } else if (val === 'DEL') {
                                     sentence = sentence.slice(0, -1);
+                                } else if (val === 'HELLO' || val === 'BYE') {
+                                    if (sentence.length > 0 && !sentence.endsWith(' ')) sentence += ' ';
+                                    sentence += val + ' ';
                                 } else {
                                     sentence += val;
                                 }
