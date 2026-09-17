@@ -52,24 +52,57 @@ RING_MCP, RING_PIP, RING_DIP, RING_TIP = 13, 14, 15, 16
 PINKY_MCP, PINKY_PIP, PINKY_DIP, PINKY_TIP = 17, 18, 19, 20
 
 
+import numpy as np
+
 def get_distance(lm1, lm2):
     return math.sqrt((lm1.x - lm2.x)**2 + (lm1.y - lm2.y)**2)
 
+def get_angle_3d(a, b, c):
+    """
+    Calculate the 3D angle between vector AB and vector BC.
+    If the finger is straight, the angle is close to 0 degrees.
+    If the finger is curled, the angle is large (e.g. > 45 degrees).
+    """
+    v1 = np.array([b.x - a.x, b.y - a.y, b.z - a.z])
+    v2 = np.array([c.x - b.x, c.y - b.y, c.z - b.z])
+    
+    norm_v1 = np.linalg.norm(v1)
+    norm_v2 = np.linalg.norm(v2)
+    if norm_v1 == 0 or norm_v2 == 0:
+        return 0.0
+        
+    cosine_angle = np.dot(v1, v2) / (norm_v1 * norm_v2)
+    cosine_angle = np.clip(cosine_angle, -1.0, 1.0)
+    return np.degrees(np.arccos(cosine_angle))
+
 def get_finger_states(landmarks, handedness='Right'):
     """
-    Determine which fingers are up (extended).
+    Determine which fingers are extended using true 3D joint angles.
+    This makes detection completely immune to camera rotation or hand tilt!
     """
     fingers = []
-    # Thumb: check if tip is further from pinky MCP than IP is
-    thumb_tip = landmarks[THUMB_TIP]
-    pinky_mcp = landmarks[PINKY_MCP]
-    thumb_ip = landmarks[THUMB_IP]
-    fingers.append(get_distance(thumb_tip, pinky_mcp) > get_distance(thumb_ip, pinky_mcp))
-
-    # Other 4 fingers: tip is above (lower y) than PIP joint
-    for tip, pip in [(INDEX_TIP, INDEX_PIP), (MIDDLE_TIP, MIDDLE_PIP),
-                     (RING_TIP, RING_PIP), (PINKY_TIP, PINKY_PIP)]:
-        fingers.append(landmarks[tip].y < landmarks[pip].y)
+    
+    # Thumb: angle between (CMC->MCP) and (MCP->TIP)
+    # Using 1, 2, 4
+    thumb_angle = get_angle_3d(landmarks[1], landmarks[2], landmarks[4])
+    fingers.append(thumb_angle < 35)
+    
+    # Index: MCP(5) -> PIP(6) -> TIP(8)
+    idx_angle = get_angle_3d(landmarks[5], landmarks[6], landmarks[8])
+    fingers.append(idx_angle < 45)
+    
+    # Middle: MCP(9) -> PIP(10) -> TIP(12)
+    mid_angle = get_angle_3d(landmarks[9], landmarks[10], landmarks[12])
+    fingers.append(mid_angle < 45)
+    
+    # Ring: MCP(13) -> PIP(14) -> TIP(16)
+    ring_angle = get_angle_3d(landmarks[13], landmarks[14], landmarks[16])
+    fingers.append(ring_angle < 45)
+    
+    # Pinky: MCP(17) -> PIP(18) -> TIP(20)
+    pinky_angle = get_angle_3d(landmarks[17], landmarks[18], landmarks[20])
+    fingers.append(pinky_angle < 45)
+    
     return fingers
 
 
