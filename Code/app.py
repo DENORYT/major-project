@@ -125,6 +125,12 @@ def classify_isl_single_hand(finger_states, landmarks, handedness='Right'):
         if dist_c > 0.15:
             return "ISL: L (एल)", 88.0
 
+    # ── Actions ──
+    # Thumb only = SPACE
+    if up_count == 1 and finger_states[0]: return "ISL: SPACE", 90.0
+    # Pinky only = DEL (Backspace)
+    if up_count == 1 and finger_states[4]: return "ISL: DEL", 90.0
+
     # ── Numbers ──
     if up_count == 1 and finger_states[1]: return "ISL: 1 (एक)", 95.0
     if up_count == 2 and finger_states[1] and finger_states[2]:
@@ -410,6 +416,8 @@ def get_gestures():
         "5 (पाँच) - Open hand",
         "C (सी) - Curved hand",
         "L (एल) - Thumb+Index",
+        "SPACE (स्पेस) - Thumbs up",
+        "DEL (मिटाएं) - Pinky up",
         "── 2-Hand ISL Signs (True Spatial) ──",
         "6-9 (छह-नौ) - Base 5 + Pointer 1-4",
         "A (ए) - Index points to Thumb tip",

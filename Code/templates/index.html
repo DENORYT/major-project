@@ -345,17 +345,29 @@
                     } else {
                         sameCount = 0;
                         lastPred = res.pred_text;
+                        // If user drops hand or makes an unknown sign, allow the same letter to be typed again
+                        if (!res.pred_text.includes("ISL:")) {
+                            window.lastAddedLetter = '';
+                        }
                     }
 
                     if (sameCount >= 8) {  // ~1.2 seconds 
-                        // Extract the primary letter/number using regex from ISL labels
-                        // Matches "ISL: A", "ISL: 0", etc.
-                        let match = res.pred_text.match(/ISL:\s*([A-Z0-9])/i);
+                        let match = res.pred_text.match(/ISL:\s*([A-Z0-9]|SPACE|DEL)/i);
                         if (match) {
-                            let letter = match[1].toUpperCase();
-                            // Don't add the exact same letter twice in a row without a break
-                            if (!sentence.endsWith(letter)) {
-                                sentence += letter;
+                            let val = match[1].toUpperCase();
+                            
+                            // Only trigger once per hold
+                            if (window.lastAddedLetter !== val) {
+                                window.lastAddedLetter = val;
+                                
+                                if (val === 'SPACE') {
+                                    if (!sentence.endsWith(' ')) sentence += ' ';
+                                } else if (val === 'DEL') {
+                                    sentence = sentence.slice(0, -1);
+                                } else {
+                                    sentence += val;
+                                }
+                                
                                 sentenceBox.innerText = sentence;
                                 
                                 // Quick visual flash to confirm addition
@@ -371,6 +383,7 @@
                     confVal.innerText = '0%';
                     sameCount = 0;
                     lastPred = '';
+                    window.lastAddedLetter = '';
                 }
             } catch (err) {
                 console.error('Error:', err);
