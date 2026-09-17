@@ -1,0 +1,16 @@
+{
+  "name": "ISL Offline App",
+  "short_name": "ISL App",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#22c55e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2800/2800171.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
