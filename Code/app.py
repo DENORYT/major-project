@@ -504,10 +504,12 @@ def get_gestures():
 
 
 if __name__ == '__main__':
+    import os
+    port = int(os.environ.get('PORT', 5000))
     print("=" * 55)
     print("  Indian Sign Language (ISL) Interpreter")
     print("  Powered by MediaPipe HandLandmarker")
     print(f"  Custom classifier: {'YES' if sklearn_model else 'NO (using finger geometry)'}")
-    print("  Server: http://localhost:5000")
+    print(f"  Server: http://0.0.0.0:{port}")
     print("=" * 55)
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)
