@@ -143,44 +143,53 @@ def classify_isl_single_hand(finger_states, landmarks, handedness='Right'):
     return f"ISL: ? ({up_count} उँगलियाँ)", 45.0
 
 
+def get_palm_size(landmarks):
+    # Distance from WRIST (0) to MIDDLE_MCP (9)
+    return get_distance(landmarks[0], landmarks[9])
+
 def classify_isl_two_hands(f1, f2, lms1, lms2):
     """
-    True ISL 2-handed alphabet logic.
-    Ultra-forgiving: heavily relies on joint proximity rather than strict finger states.
+    True ISL 2-handed alphabet logic (Scale-Invariant Model).
+    Uses relative distances so it works perfectly regardless of camera distance!
     """
     for base_lms, ptr_lms, base_f, ptr_f in [(lms1, lms2, f1, f2), (lms2, lms1, f2, f1)]:
         
         ptr_tip = ptr_lms[INDEX_TIP]
+        palm_size = get_palm_size(base_lms)
+        if palm_size == 0: palm_size = 0.01 # prevent division by zero
+        
+        def rel_dist(lm1, lm2):
+            return get_distance(lm1, lm2) / palm_size
         
         # 1. ISL Vowels: Pointer Index touches Base fingertips
-        # We don't care if other fingers are messy, as long as the touch is clear!
-        if get_distance(ptr_tip, base_lms[THUMB_TIP]) < 0.10: return "ISL: A (ए)", 90.0
-        if get_distance(ptr_tip, base_lms[INDEX_TIP]) < 0.10: return "ISL: E (ई)", 90.0
-        if get_distance(ptr_tip, base_lms[MIDDLE_TIP]) < 0.10: return "ISL: I (आई)", 90.0
-        if get_distance(ptr_tip, base_lms[RING_TIP]) < 0.10: return "ISL: O (ओ)", 90.0
-        if get_distance(ptr_tip, base_lms[PINKY_TIP]) < 0.10: return "ISL: U (यू)", 90.0
+        # A relative distance of < 0.7 means they are touching (scaled to hand size)
+        if rel_dist(ptr_tip, base_lms[THUMB_TIP]) < 0.7: return "ISL: A (ए)", 90.0
+        if rel_dist(ptr_tip, base_lms[INDEX_TIP]) < 0.7: return "ISL: E (ई)", 90.0
+        if rel_dist(ptr_tip, base_lms[MIDDLE_TIP]) < 0.7: return "ISL: I (आई)", 90.0
+        if rel_dist(ptr_tip, base_lms[RING_TIP]) < 0.7: return "ISL: O (ओ)", 90.0
+        if rel_dist(ptr_tip, base_lms[PINKY_TIP]) < 0.7: return "ISL: U (यू)", 90.0
             
         # 2. Consonants touching palm (M, N, V)
         base_palm = base_lms[9] # MIDDLE_MCP is roughly palm center
         
-        d_idx = get_distance(ptr_lms[INDEX_TIP], base_palm)
-        d_mid = get_distance(ptr_lms[MIDDLE_TIP], base_palm)
-        d_ring = get_distance(ptr_lms[RING_TIP], base_palm)
+        d_idx = rel_dist(ptr_lms[INDEX_TIP], base_palm)
+        d_mid = rel_dist(ptr_lms[MIDDLE_TIP], base_palm)
+        d_ring = rel_dist(ptr_lms[RING_TIP], base_palm)
         
-        if d_idx < 0.15 and d_mid < 0.15 and d_ring < 0.15:
+        if d_idx < 1.2 and d_mid < 1.2 and d_ring < 1.2:
             return "ISL: M (एम)", 88.0
-        elif d_idx < 0.15 and d_mid < 0.15:
-            spread = get_distance(ptr_lms[INDEX_TIP], ptr_lms[MIDDLE_TIP])
-            if spread > 0.05: return "ISL: V (वी)", 88.0
+        elif d_idx < 1.2 and d_mid < 1.2:
+            spread = rel_dist(ptr_lms[INDEX_TIP], ptr_lms[MIDDLE_TIP])
+            if spread > 0.5: return "ISL: V (वी)", 88.0
             else: return "ISL: N (एन)", 88.0
                 
         # 3. Letter D: Pointer Index+Thumb touch Base Index
-        if get_distance(ptr_lms[INDEX_TIP], base_lms[INDEX_TIP]) < 0.15 and \
-           get_distance(ptr_lms[THUMB_TIP], base_lms[INDEX_MCP]) < 0.15:
+        if rel_dist(ptr_lms[INDEX_TIP], base_lms[INDEX_TIP]) < 1.0 and \
+           rel_dist(ptr_lms[THUMB_TIP], base_lms[INDEX_MCP]) < 1.0:
             return "ISL: D (डी)", 85.0
                 
         # 4. Letter B: Both hands open, sides touching
-        if get_distance(base_lms[INDEX_MCP], ptr_lms[INDEX_MCP]) < 0.10 and base_f[1] and ptr_f[1]:
+        if rel_dist(base_lms[INDEX_MCP], ptr_lms[INDEX_MCP]) < 0.8 and base_f[1] and ptr_f[1]:
             return "ISL: B (बी)", 85.0
 
     return "Unknown", 0.0
