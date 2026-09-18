@@ -1,0 +1,24 @@
+name: isl_assistant
+description: Agentic AI-Powered Multimodal Sign Language Communication Assistant.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  camera: ^0.10.5
+  web_socket_channel: ^2.4.0
+  flutter_tts: ^3.8.3
+  permission_handler: ^11.0.1
+  http: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true

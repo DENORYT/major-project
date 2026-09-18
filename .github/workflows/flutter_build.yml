@@ -1,0 +1,50 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.0'
+        channel: 'stable'
+
+    - name: Scaffold Android Architecture
+      run: |
+        cd mobile_app
+        flutter create --platforms android temp_app
+        mv temp_app/android ./android
+        rm -rf temp_app
+        
+        # Camera and TTS require at least minSdkVersion 21
+        sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle
+
+    - name: Install dependencies
+      run: |
+        cd mobile_app
+        flutter pub get
+
+    - name: Build APK
+      run: |
+        cd mobile_app
+        flutter build apk --release
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ISL-Assistant-App
+        path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
