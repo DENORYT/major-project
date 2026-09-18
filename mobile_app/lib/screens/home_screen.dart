@@ -21,7 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Change this to your laptop's IP address when running on a physical device.
   // Example: 'ws://192.168.1.100:8000/ws/stream'
-  final String _backendUrl = 'ws://10.0.2.2:8000/ws/stream';
+  String _backendUrl = 'ws://10.0.2.2:8000/ws/stream';
 
   @override
   void initState() {
@@ -217,6 +217,35 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (context) {
+              TextEditingController ipController = TextEditingController(text: _backendUrl);
+              return AlertDialog(
+                title: const Text('Backend Server URL'),
+                content: TextField(
+                  controller: ipController,
+                  decoration: const InputDecoration(hintText: "ws://192.168.X.X:8000/ws/stream"),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _backendUrl = ipController.text;
+                      });
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Save'),
+                  )
+                ],
+              );
+            }
+          );
+        },
+        child: const Icon(Icons.settings),
       ),
     );
   }
